@@ -91,4 +91,7 @@ dependencies {
     ksp(libs.koin.ksp.compiler)
 
     implementation(libs.bundles.coil)
+
+    implementation(libs.play.services.mlkit.document.scanner)
+
 }

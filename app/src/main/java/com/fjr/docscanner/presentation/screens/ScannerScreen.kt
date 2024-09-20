@@ -1,5 +1,7 @@
 package com.fjr.docscanner.presentation.screens
 
+import android.app.Activity
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +20,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -35,11 +38,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.fjr.docscanner.R
 import com.fjr.docscanner.presentation.components.MultiSelector
+import com.fjr.docscanner.presentation.components.Scanner
 import com.fjr.docscanner.presentation.util.RequestStoragePermissions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,7 +56,9 @@ fun ScannerScreen() {
     val scope = rememberCoroutineScope()
     val options = listOf("Image", "Pdf")
     val pagerState = rememberPagerState(pageCount = { options.size })
-    val selectedTabIndex = remember { derivedStateOf { pagerState.currentPage } }
+    val selectedTabIndex by remember { derivedStateOf { pagerState.currentPage } }
+
+    var startScan by remember { mutableStateOf(false) }
 
     if (!hasPermission) {
         RequestStoragePermissions { granted ->
@@ -61,9 +69,47 @@ fun ScannerScreen() {
         }
     }
 
+    if (startScan) {
+        val context = LocalContext.current
+        val activity = context as ComponentActivity
+        Scanner(
+            selectedTabIndex = selectedTabIndex,
+            activity = activity,
+            onResult = { activityResult ->
+                startScan = false
+
+                if (activityResult.resultCode == Activity.RESULT_OK) {
+                    val result = GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
+
+                    result?.pages?.let { pages ->
+                        for (page in pages) {
+                            val imageUri = page.imageUri
+                            println("$imageUri")
+//                            Storage.saveDoc(context, imageUri)
+//                            viewModel.readDocs()
+                        }
+                    }
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(text = "Doc Scanner") })
+            CenterAlignedTopAppBar(title = { MultiSelector(
+                options = options,
+                selectedOption = options[selectedTabIndex],
+                onOptionSelect = { option ->
+                    scope.launch {
+                        println("onclick $option ${options.indexOf(option)}")
+                        pagerState.animateScrollToPage(options.indexOf(option))
+                    }
+                },
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth()
+                    .height(40.dp)
+            ) })
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -73,7 +119,9 @@ fun ScannerScreen() {
                     hoveredElevation = 0.dp,
                     pressedElevation = 0.dp
                 ),
-                onClick = {}) {
+                onClick = {
+                    startScan = true
+                }) {
                 Row(
                     Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -94,21 +142,6 @@ fun ScannerScreen() {
                 paddingValues
             )
         ) {
-            MultiSelector(
-                options = options,
-                selectedOption = options[selectedTabIndex.value],
-                onOptionSelect = { option ->
-                    scope.launch {
-                        println("onclick $option ${options.indexOf(option)}")
-                        pagerState.animateScrollToPage(options.indexOf(option))
-                    }
-                },
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .fillMaxWidth()
-                    .height(40.dp)
-                )
-
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
@@ -119,7 +152,7 @@ fun ScannerScreen() {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = options[selectedTabIndex.value])
+                    Text(text = options[selectedTabIndex])
                 }
             }
 
