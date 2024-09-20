@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,24 +42,32 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fjr.docscanner.R
 import com.fjr.docscanner.presentation.components.MultiSelector
 import com.fjr.docscanner.presentation.components.Scanner
 import com.fjr.docscanner.presentation.util.RequestStoragePermissions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScannerScreen() {
+fun ScannerScreen(
+
+) {
     var hasPermission by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val options = listOf("Image", "Pdf")
     val pagerState = rememberPagerState(pageCount = { options.size })
     val selectedTabIndex by remember { derivedStateOf { pagerState.currentPage } }
-
     var startScan by remember { mutableStateOf(false) }
+
+
+    val scannerViewModel: ScannerViewModel = koinViewModel()
+    val state by scannerViewModel.scannerState.collectAsStateWithLifecycle()
+
 
     if (!hasPermission) {
         RequestStoragePermissions { granted ->
@@ -66,6 +75,10 @@ fun ScannerScreen() {
             hasPermission = granted
 
             println("== hasPermission $hasPermission")
+        }
+    } else {
+        LaunchedEffect(key1 = Unit) {
+            scannerViewModel.readAllDocs()
         }
     }
 

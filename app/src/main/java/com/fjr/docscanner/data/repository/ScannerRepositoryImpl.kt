@@ -19,7 +19,7 @@ class ScannerRepositoryImpl(
         return dataSource.saveDocPdf(pdfUri)
     }
 
-    override suspend fun readDocPdf(): Result<List<DocPdf>, DataError.Storage> {
+    override suspend fun readDocsPdf(): Result<List<DocPdf>, DataError.Storage> {
         return dataSource.readDocPdf()
     }
 

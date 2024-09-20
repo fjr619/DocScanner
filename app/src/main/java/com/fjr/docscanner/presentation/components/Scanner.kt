@@ -6,6 +6,8 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import com.fjr.docscanner.R
+import com.fjr.docscanner.presentation.util.showToast
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_FORMAT_JPEG
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_FORMAT_PDF
@@ -41,6 +43,6 @@ fun Scanner(
             scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
         }
         .addOnFailureListener {
-//            activity.showToast(R.string.scanner_build_error_text)
+            activity.showToast( R.string.scanner_build_error_text)
         }
 }
