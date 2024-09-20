@@ -19,17 +19,19 @@ import com.fjr.docscanner.domain.util.Result
 import com.fjr.docscanner.domain.util.asEmptyDataResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.koin.core.annotation.Single
 import java.io.InputStream
 import java.io.OutputStream
 
+@Single
 class DataSource(
-    context: Context
+    val context: Context
 ) {
     companion object {
         const val DIRECTORY = "DocScanner"
     }
 
-    suspend fun saveDocPdf(context: Context, pdfUri: Uri): EmptyResult<DataError.Storage> {
+    suspend fun saveDocPdf(pdfUri: Uri): EmptyResult<DataError.Storage> {
         val pdfName = "DocScan_${System.currentTimeMillis()}.pdf"
 
         // Define the content values for the new file in the public Documents/DocScan directory
@@ -90,7 +92,7 @@ class DataSource(
         }
     }
 
-    suspend fun readDocPdf(context: Context, directory: String): Result<List<DocPdf>, DataError.Storage> {
+    suspend fun readDocPdf(): Result<List<DocPdf>, DataError.Storage> {
         return withContext(Dispatchers.IO) {
             val contentResolver = context.contentResolver ?: return@withContext Result.Failed(DataError.Storage.ERROR_READING)
             val result: ArrayList<DocPdf> = arrayListOf()
@@ -107,7 +109,7 @@ class DataSource(
                 val selection = "${MediaStore.Files.FileColumns.MIME_TYPE} = ? AND ${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
                 val selectionArgs = arrayOf(
                     "application/pdf",  // Filter only PDF files
-                    "%/$directory/%"    // Filter by directory
+                    "%/$DIRECTORY/%"    // Filter by directory
                 )
                 val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
 
@@ -146,7 +148,7 @@ class DataSource(
         }
     }
 
-    suspend fun saveDocImg(context: Context, imageUri: Uri): EmptyResult<DataError.Storage> {
+    suspend fun saveDocImg(imageUri: Uri): EmptyResult<DataError.Storage> {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, "DocScan_${System.currentTimeMillis()}")
             put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
@@ -184,7 +186,7 @@ class DataSource(
         }
     }
 
-    suspend fun readDocsImg(context: Context, directory: String): Result<List<DocImg>, DataError.Storage> {
+    suspend fun readDocsImg(): Result<List<DocImg>, DataError.Storage> {
         return withContext(Dispatchers.IO) {
             val result: ArrayList<DocImg> = arrayListOf()
 
@@ -197,7 +199,7 @@ class DataSource(
                 MediaStore.Images.Media.DATE_MODIFIED
             )
             val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
-            val selectionArgs = arrayOf("%/$directory/%")
+            val selectionArgs = arrayOf("%/$DIRECTORY/%")
             val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
 
             try {

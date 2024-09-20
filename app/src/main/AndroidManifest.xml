@@ -2,7 +2,37 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+<!--    &lt;!&ndash; To handle the reselection within the app on Android 14+ (when targeting API 33+) &ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />-->
+
+<!--    &lt;!&ndash; Devices running Android 13+ &ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />-->
+
+<!--    &lt;!&ndash; Devices running up to Android 12L &ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"-->
+<!--        android:maxSdkVersion="32" />-->
+
+<!--    <uses-permission-->
+<!--        android:name="android.permission.WRITE_EXTERNAL_STORAGE"-->
+<!--        android:maxSdkVersion="32"-->
+<!--        tools:ignore="ScopedStorage" />-->
+
+<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"-->
+<!--        android:maxSdkVersion="32" />-->
+
+<!--    &lt;!&ndash; Only needed if you want to request broad file access, otherwise use SAF &ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />-->
+
+
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:targetApi="30"
+        tools:ignore="ScopedStorage" />
+
+
     <application
+        android:name=".DocScanner"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
