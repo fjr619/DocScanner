@@ -6,6 +6,7 @@ sealed interface DataError : Error {
 
     enum class Storage : DataError {
         ERROR_SAVING,
-        ERROR_READING
+        ERROR_READING,
+        ERROR_DELETING
     }
 }

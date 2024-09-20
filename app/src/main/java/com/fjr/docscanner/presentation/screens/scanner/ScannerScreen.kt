@@ -1,4 +1,4 @@
-package com.fjr.docscanner.presentation.screens
+package com.fjr.docscanner.presentation.screens.scanner
 
 import android.app.Activity
 import androidx.activity.ComponentActivity
@@ -10,16 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -27,7 +21,6 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -38,7 +31,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -46,11 +38,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fjr.docscanner.R
 import com.fjr.docscanner.presentation.components.MultiSelector
 import com.fjr.docscanner.presentation.components.Scanner
+import com.fjr.docscanner.presentation.screens.list_img.ListImgTab
 import com.fjr.docscanner.presentation.util.RequestStoragePermissions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,8 +86,6 @@ fun ScannerScreen(
 
                 if (activityResult.resultCode == Activity.RESULT_OK) {
                     val result = GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
-
-
                     if (selectedTabIndex == 0) {
                         //image
                         result?.pages?.let { pages ->
@@ -132,6 +121,7 @@ fun ScannerScreen(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .height(40.dp)
             ) })
         },
@@ -172,12 +162,17 @@ fun ScannerScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = options[selectedTabIndex])
+                if (selectedTabIndex == 0) {
+                    ListImgTab(list = state.listDocsImg ?: listOf())
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = options[selectedTabIndex])
+                    }
                 }
+
             }
 
         }

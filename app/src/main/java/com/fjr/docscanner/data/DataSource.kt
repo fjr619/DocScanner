@@ -238,4 +238,20 @@ class DataSource(
             }
         }
     }
+
+    suspend fun deleteDocImg(uri: Uri): EmptyResult<DataError.Storage> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val rowsDeleted = context.contentResolver.delete(uri, null, null)
+                if (rowsDeleted > 0) {
+                    Result.Success(Unit).asEmptyDataResult() // Successfully deleted
+                } else {
+                    Result.Failed(DataError.Storage.ERROR_DELETING) // No rows were deleted
+                }
+            } catch (e: Exception) {
+                e.printStackTrace() // Log the exception for debugging
+                Result.Failed(DataError.Storage.ERROR_DELETING)
+            }
+        }
+    }
 }

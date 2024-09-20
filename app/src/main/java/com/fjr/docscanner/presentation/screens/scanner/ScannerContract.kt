@@ -1,4 +1,4 @@
-package com.fjr.docscanner.presentation.screens
+package com.fjr.docscanner.presentation.screens.scanner
 
 import com.fjr.docscanner.domain.model.DocImg
 import com.fjr.docscanner.domain.model.DocPdf
