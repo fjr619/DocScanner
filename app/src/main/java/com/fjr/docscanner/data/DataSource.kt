@@ -40,7 +40,7 @@ class DataSource(
             put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf") // MIME type
             put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
-                Environment.DIRECTORY_DOCUMENTS + "/DocScan" // Save to Documents/DocScan directory
+                Environment.DIRECTORY_DOCUMENTS + "/"+DIRECTORY // Save to Documents/DocScan directory
 
             )
         }

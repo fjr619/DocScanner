@@ -9,15 +9,18 @@ import com.fjr.docscanner.domain.util.DataError
 import com.fjr.docscanner.domain.util.Result
 import com.fjr.docscanner.presentation.util.UiText
 import com.fjr.docscanner.presentation.util.asUiText
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.koin.android.annotation.KoinViewModel
 
@@ -95,6 +98,7 @@ class ScannerViewModel(
     }
 
     fun readDocsImg(onCompleted: () -> Unit = {}) {
+        println("== readDocsImg")
         fetchDocuments(
             fetch = {
                 coroutineScope {
@@ -112,6 +116,8 @@ class ScannerViewModel(
                 _scannerState.update {
                     it.copy(listDocsImg = data)
                 }
+
+                println("== readDocsImg size image docs ${scannerState.value.listDocsImg?.size}")
             },
             onFailed = { uiText ->
                 eventChannel.send(ScannerContract.Event.showToast(uiText))
@@ -121,6 +127,7 @@ class ScannerViewModel(
     }
 
     fun readDocsPdf(onCompleted: () -> Unit = {}) {
+        println("== readDocsPdf")
         fetchDocuments(
             fetch = {
                 coroutineScope {
@@ -138,6 +145,9 @@ class ScannerViewModel(
                 _scannerState.update {
                     it.copy(listDocsPdf = data)
                 }
+
+                println("== readDocsPdf size pdf docs ${scannerState.value.listDocsPdf?.size}")
+
             },
             onFailed = { uiText ->
                 eventChannel.send(ScannerContract.Event.showToast(uiText))
@@ -160,12 +170,17 @@ class ScannerViewModel(
     }
 
     fun saveDocPdf(pdfUri: Uri) {
+        println("== saveDocPdf")
         saveDocument(
             saveOperation = {
                 scannerRepository.saveDocPdf(pdfUri)
             },
             onSucceed = { uiText ->
-                eventChannel.send(ScannerContract.Event.showToast(uiText))
+                println("== saveDocPdf succeed")
+                viewModelScope.launch {
+                    eventChannel.send(ScannerContract.Event.showToast(uiText))
+                }
+               readDocsPdf {  }
             },
             onFailed = { uiText ->
                 eventChannel.send(ScannerContract.Event.showToast(uiText))
@@ -174,12 +189,17 @@ class ScannerViewModel(
     }
 
     fun saveDocImg(imgUri: Uri) {
+        println("== saveDocImg")
         saveDocument(
             saveOperation = {
                 scannerRepository.saveDocImg(imgUri)
             },
             onSucceed = { uiText ->
-                eventChannel.send(ScannerContract.Event.showToast(uiText))
+                println("== saveDocImg succeed")
+                viewModelScope.launch {
+                    eventChannel.send(ScannerContract.Event.showToast(uiText))
+                }
+                readDocsImg {  }
             },
             onFailed = { uiText ->
                 eventChannel.send(ScannerContract.Event.showToast(uiText))
@@ -202,9 +222,11 @@ class ScannerViewModel(
 //    }
 
 //    fun saveDocImg(imgUri: Uri) {
+//        println("== saveDocImg2")
 //        viewModelScope.launch {
 //            when (val result = scannerRepository.saveDocImg(imgUri)) {
 //                is Result.Success -> {
+//                    println("== saveDocImg2 succed")
 //                    eventChannel.send(ScannerContract.Event.showToast(UiText.StringResource(R.string.storage_save_doc_to_device_error_message)))
 //                }
 //
@@ -214,6 +236,7 @@ class ScannerViewModel(
 //            }
 //        }
 //    }
+
 
 //    fun readAllDocs(onCompleted: () -> Unit = {}) {
 //        viewModelScope.launch(Dispatchers.IO) {

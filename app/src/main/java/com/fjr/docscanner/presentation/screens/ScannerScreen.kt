@@ -48,7 +48,9 @@ import com.fjr.docscanner.presentation.components.MultiSelector
 import com.fjr.docscanner.presentation.components.Scanner
 import com.fjr.docscanner.presentation.util.RequestStoragePermissions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,14 +96,23 @@ fun ScannerScreen(
                 if (activityResult.resultCode == Activity.RESULT_OK) {
                     val result = GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
 
-                    result?.pages?.let { pages ->
-                        for (page in pages) {
-                            val imageUri = page.imageUri
-                            println("$imageUri")
-//                            Storage.saveDoc(context, imageUri)
-//                            viewModel.readDocs()
+
+                    if (selectedTabIndex == 0) {
+                        //image
+                        result?.pages?.let { pages ->
+                            for (page in pages) {
+                                val imageUri = page.imageUri
+                                scannerViewModel.saveDocImg(imageUri)
+                            }
+                        }
+                    } else {
+                        //pdf
+                        result?.pdf?.let { pdf ->
+                            scannerViewModel.saveDocPdf(pdf.uri)
                         }
                     }
+
+
                 }
             }
         )
