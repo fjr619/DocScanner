@@ -3,14 +3,20 @@ package com.fjr.docscanner.presentation.screens.scanner
 import android.app.Activity
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -20,8 +26,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -32,6 +40,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -116,7 +126,37 @@ fun ScannerScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(title = {
+//            CenterAlignedTopAppBar(
+//                colors = TopAppBarDefaults.topAppBarColors(
+//                    containerColor = MaterialTheme.colorScheme.surface,
+//                    scrolledContainerColor = MaterialTheme.colorScheme.surface
+//                ),
+//                title = {
+//                MultiSelector(
+//                    options = options,
+//                    selectedOption = options[selectedTabIndex],
+//                    onOptionSelect = { option ->
+//                        scope.launch {
+//                            println("onclick $option ${options.indexOf(option)}")
+//                            pagerState.animateScrollToPage(options.indexOf(option))
+//                        }
+//                    },
+//                    modifier = Modifier
+//                        .padding(horizontal = 16.dp)
+//                        .fillMaxWidth()
+//                        .statusBarsPadding()
+//                        .height(40.dp)
+//                )
+//            })
+            Box(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surface)
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(top = 16.dp, bottom = 5.dp, start = 16.dp, end = 16.dp)
+                    .height(56.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 MultiSelector(
                     options = options,
                     selectedOption = options[selectedTabIndex],
@@ -127,12 +167,9 @@ fun ScannerScreen(
                         }
                     },
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .height(40.dp)
+
                 )
-            })
+            }
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -163,7 +200,8 @@ fun ScannerScreen(
 
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
         ) { page ->
             when (page) {
                 0 -> {
@@ -178,7 +216,7 @@ fun ScannerScreen(
                     ListPdfTab(
                         paddingValues = paddingValues,
                         listDocPdf = state.listDocsPdf ?: listOf(),
-                        listState = pdfListState,
+                         listState = pdfListState,
                     )
                 }
             }
