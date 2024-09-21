@@ -1,5 +1,6 @@
 package com.fjr.docscanner.presentation.util
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -13,7 +14,12 @@ fun Context.showToast(textId: Int) {
     ).show()
 }
 
-fun Context.openUri(uri: Uri) {
-    val intent = Intent(Intent.ACTION_VIEW, uri)
+fun Context.openUri(uri: Uri, mimeType: String) {
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, mimeType) // Set the MIME type
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Grant permission to read the URI
+    }
+
     startActivity(intent)
+
 }

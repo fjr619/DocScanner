@@ -38,7 +38,7 @@ class ScannerViewModel(
         onFailed: suspend (UiText) -> Unit, // it will be use with event
         onCompleted: () -> Unit = {}
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             // Update loading state
             _scannerState.update {
                 it.copy(isLoading = true)
@@ -56,7 +56,11 @@ class ScannerViewModel(
             _scannerState.update {
                 it.copy(isLoading = false)
             }
-            onCompleted()
+
+            withContext(Dispatchers.Main) {
+                onCompleted()
+            }
+
         }
     }
 

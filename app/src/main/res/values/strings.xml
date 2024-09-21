@@ -6,4 +6,5 @@
     <string name="storage_save_doc_to_device_error_message">Unexpected error occurred during saving document to device</string>
 
     <string name="storage_read_doc_from_device_error_message">Unexpected error occurred during reading document(s) from device</string>
+    <string name="storage_delete_doc_from_device_error_message">Unexpected error occurred during deleting document from device</string>
 </resources>
