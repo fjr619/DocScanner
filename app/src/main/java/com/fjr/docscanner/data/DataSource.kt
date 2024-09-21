@@ -3,10 +3,13 @@ package com.fjr.docscanner.data
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import com.fjr.docscanner.R
 import com.fjr.docscanner.data.util.toBitmap
@@ -17,19 +20,52 @@ import com.fjr.docscanner.domain.util.DataError
 import com.fjr.docscanner.domain.util.EmptyResult
 import com.fjr.docscanner.domain.util.Result
 import com.fjr.docscanner.domain.util.asEmptyDataResult
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
 import java.io.InputStream
 import java.io.OutputStream
 
+class DocumentContentObserver(
+    private val scope: CoroutineScope,
+    private val onUpdateImg: () -> Unit,
+    private val onUpdatePdf: () -> Unit
+) : ContentObserver(Handler(Looper.getMainLooper())) {
+    override fun onChange(self: Boolean, uri: Uri?) {
+        super.onChange(self, uri)
+        // Call the update function in the coroutine scope
+        println("uri $uri")
+        scope.launch {
+            when {
+                uri != null && uri.toString().contains("media/external/images/media") -> {
+                    scope.launch {
+                        onUpdateImg() // Call update for images
+                    }
+                }
+                uri != null && uri.toString().contains("media/external_primary/file") -> {
+                    scope.launch {
+                        onUpdatePdf() // Call update for PDFs
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 @Single
 class DataSource(
-    val context: Context
+    val context: Context,
+    val coroutineScope: CoroutineScope
 ) {
     companion object {
         const val DIRECTORY = "DocScanner"
     }
+
+    private lateinit var imgContentObserver: DocumentContentObserver
+    private lateinit var pdfContentObserver: DocumentContentObserver
 
     suspend fun saveDocPdf(pdfUri: Uri): EmptyResult<DataError.Storage> {
         val pdfName = "DocScan_${System.currentTimeMillis()}.pdf"
@@ -254,4 +290,41 @@ class DataSource(
             }
         }
     }
+
+    fun startObservingDocuments(onUpdateImg: () -> Unit, onUpdatePdf: () -> Unit) {
+        val contentResolver = context.contentResolver ?: return
+
+        imgContentObserver = DocumentContentObserver(coroutineScope, onUpdateImg = {
+            println("== change in image")
+            onUpdateImg()
+        }, onUpdatePdf = {})
+
+        pdfContentObserver = DocumentContentObserver(coroutineScope, onUpdateImg = {}, onUpdatePdf = {
+            println("== change in pdf")
+            onUpdatePdf()
+        })
+
+        contentResolver.registerContentObserver(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            true,
+            imgContentObserver
+        )
+
+        contentResolver.registerContentObserver(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } else {
+                MediaStore.Files.getContentUri("external")
+            },
+            true,
+            pdfContentObserver
+        )
+    }
+
+    fun stopObservingDocuments() {
+        val contentResolver = context.contentResolver ?: return
+        contentResolver.unregisterContentObserver(imgContentObserver)
+        contentResolver.unregisterContentObserver(pdfContentObserver)
+    }
+
 }

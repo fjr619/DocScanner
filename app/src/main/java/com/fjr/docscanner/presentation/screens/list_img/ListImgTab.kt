@@ -39,7 +39,7 @@ fun ListImgTab(paddingValues: PaddingValues, listDocImg: List<DocImg>, gridState
 
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Fixed(1),
+        columns = GridCells.Fixed(3),
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .fillMaxSize(),

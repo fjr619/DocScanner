@@ -59,7 +59,12 @@ import org.koin.androidx.compose.koinViewModel
 
 class PagerNestedScrollConnection : NestedScrollConnection
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+/**
+ * TODO
+ * can be optimize with save the uri path to database, and retrive base on that database
+ * instead of relay on query media store
+ */
+
 @Composable
 fun ScannerScreen(
     scannerViewModel: ScannerViewModel = koinViewModel()
@@ -81,14 +86,12 @@ fun ScannerScreen(
 
     if (!hasPermission) {
         RequestStoragePermissions { granted ->
-            println("== granted $granted")
             hasPermission = granted
-
-            println("== hasPermission $hasPermission")
         }
     } else {
         LaunchedEffect(key1 = Unit) {
             scannerViewModel.readAllDocs()
+            scannerViewModel.startObservingDocuments()
         }
     }
 
@@ -126,34 +129,12 @@ fun ScannerScreen(
 
     Scaffold(
         topBar = {
-//            CenterAlignedTopAppBar(
-//                colors = TopAppBarDefaults.topAppBarColors(
-//                    containerColor = MaterialTheme.colorScheme.surface,
-//                    scrolledContainerColor = MaterialTheme.colorScheme.surface
-//                ),
-//                title = {
-//                MultiSelector(
-//                    options = options,
-//                    selectedOption = options[selectedTabIndex],
-//                    onOptionSelect = { option ->
-//                        scope.launch {
-//                            println("onclick $option ${options.indexOf(option)}")
-//                            pagerState.animateScrollToPage(options.indexOf(option))
-//                        }
-//                    },
-//                    modifier = Modifier
-//                        .padding(horizontal = 16.dp)
-//                        .fillMaxWidth()
-//                        .statusBarsPadding()
-//                        .height(40.dp)
-//                )
-//            })
             Box(
                 modifier = Modifier
                     .background(MaterialTheme.colorScheme.surface)
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(top = 16.dp, bottom = 5.dp, start = 16.dp, end = 16.dp)
+                    .padding(top = 16.dp, bottom = 10.dp, start = 16.dp, end = 16.dp)
                     .height(56.dp),
                 contentAlignment = Alignment.Center
             ) {

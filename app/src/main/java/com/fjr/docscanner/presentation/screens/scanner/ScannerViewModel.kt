@@ -64,6 +64,28 @@ class ScannerViewModel(
         }
     }
 
+    fun startObservingDocuments() {
+        viewModelScope.launch {
+            println("== startObservingDocuments")
+            scannerRepository.startObservingDocuments(
+                onUpdateImg = {
+                    readDocsImg()
+
+                },
+                onUpdatePdf = {
+                    readDocsPdf()
+                }
+            )
+        }
+    }
+
+    override fun onCleared() {
+        viewModelScope.launch {
+            scannerRepository.stopObservingDocuments()
+        }
+        super.onCleared()
+    }
+
     fun readAllDocs(onCompleted: () -> Unit = {}) {
         fetchDocuments(
             fetch = {
@@ -181,7 +203,7 @@ class ScannerViewModel(
                 viewModelScope.launch {
                     eventChannel.send(ScannerContract.Event.showToast(uiText))
                 }
-               readDocsPdf {  }
+//               readDocsPdf {  }
             },
             onFailed = { uiText ->
                 eventChannel.send(ScannerContract.Event.showToast(uiText))
@@ -200,7 +222,7 @@ class ScannerViewModel(
                 viewModelScope.launch {
                     eventChannel.send(ScannerContract.Event.showToast(uiText))
                 }
-                readDocsImg {  }
+//                readDocsImg {  }
             },
             onFailed = { uiText ->
                 eventChannel.send(ScannerContract.Event.showToast(uiText))
