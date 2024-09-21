@@ -3,6 +3,7 @@ package com.fjr.docscanner.data
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.net.Uri
@@ -11,7 +12,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import com.fjr.docscanner.R
+import androidx.annotation.RequiresApi
 import com.fjr.docscanner.data.util.toBitmap
 import com.fjr.docscanner.data.util.toImageBitmap
 import com.fjr.docscanner.domain.model.DocImg
@@ -25,8 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
-import java.io.InputStream
-import java.io.OutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 class DocumentContentObserver(
     private val scope: CoroutineScope,
@@ -36,7 +37,7 @@ class DocumentContentObserver(
     override fun onChange(self: Boolean, uri: Uri?) {
         super.onChange(self, uri)
         // Call the update function in the coroutine scope
-        println("uri $uri")
+        println("uri $uri ${uri?.path}" )
         scope.launch {
             when {
                 uri != null && uri.toString().contains("media/external/images/media") -> {
@@ -44,7 +45,10 @@ class DocumentContentObserver(
                         onUpdateImg() // Call update for images
                     }
                 }
-                uri != null && uri.toString().contains("media/external_primary/file") -> {
+
+                uri != null && (uri.toString()
+                    .contains("media/external_primary/file") || uri.toString()
+                    .contains("media/external/file")) -> {
                     scope.launch {
                         onUpdatePdf() // Call update for PDFs
                     }
@@ -68,6 +72,24 @@ class DataSource(
     private lateinit var pdfContentObserver: DocumentContentObserver
 
     suspend fun saveDocPdf(pdfUri: Uri): EmptyResult<DataError.Storage> {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Check Android version and call appropriate saving method
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // For Android 10 and above
+                    savePdfUsingMediaStore(pdfUri)
+                } else {
+                    // For Android 9 and below
+                    savePdfUsingFile(pdfUri)
+                }
+            } catch (e: Exception) {
+                Result.Failed(DataError.Storage.ERROR_SAVING)
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun savePdfUsingMediaStore(pdfUri: Uri): EmptyResult<DataError.Storage> {
         val pdfName = "DocScan_${System.currentTimeMillis()}.pdf"
 
         // Define the content values for the new file in the public Documents/DocScan directory
@@ -76,36 +98,23 @@ class DataSource(
             put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf") // MIME type
             put(
                 MediaStore.MediaColumns.RELATIVE_PATH,
-                Environment.DIRECTORY_DOCUMENTS + "/"+DIRECTORY // Save to Documents/DocScan directory
-
+                Environment.DIRECTORY_DOCUMENTS + "/$DIRECTORY" // Save to Documents/DocScan directory
             )
         }
 
-        // Get the appropriate URI for saving the file in the Documents directory based on Android version
-        val pdfCollectionUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        } else {
-            MediaStore.Files.getContentUri("external")
-        }
+        // Get the appropriate URI for saving the file in the Documents directory
+        val pdfCollectionUri = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
-        return withContext(Dispatchers.IO) {
-            try {
-                // Insert the new file into the MediaStore with the specified path
-                val destinationUri: Uri =
-                    context.contentResolver.insert(pdfCollectionUri, contentValues)
-                        ?: return@withContext Result.Failed(DataError.Storage.ERROR_SAVING)
+        return try {
+            // Insert the new file into the MediaStore with the specified path
+            val destinationUri: Uri =
+                context.contentResolver.insert(pdfCollectionUri, contentValues)
+                    ?: return Result.Failed(DataError.Storage.ERROR_SAVING)
 
-                // Open the input stream to read from the existing PDF file
-                val inputStream: InputStream = context.contentResolver.openInputStream(pdfUri)
-                    ?: return@withContext Result.Failed(DataError.Storage.ERROR_SAVING)
-
+            // Open the input stream to read from the existing PDF file
+            context.contentResolver.openInputStream(pdfUri)?.use { inputStream ->
                 // Open the output stream to write to the new file location
-                val outputStream: OutputStream =
-                    context.contentResolver.openOutputStream(destinationUri)
-                        ?: return@withContext Result.Failed(DataError.Storage.ERROR_SAVING)
-
-                try {
-                    // Use a 4 KB buffer for better performance
+                context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
                     val buffer = ByteArray(4096) // 4 KB buffer size
                     var bytesRead: Int
 
@@ -115,127 +124,184 @@ class DataSource(
                     outputStream.flush()
 
                     Result.Success(Unit).asEmptyDataResult()
-                } catch (e: Exception) {
-                    Result.Failed(DataError.Storage.ERROR_SAVING)
-                } finally {
-                    // Close both streams safely
-                    inputStream.close()
-                    outputStream.close()
-                }
-            } catch (e: Exception) {
-                Result.Failed(DataError.Storage.ERROR_SAVING)
+                } ?: Result.Failed(DataError.Storage.ERROR_SAVING) // Output stream is null
+            } ?: Result.Failed(DataError.Storage.ERROR_SAVING) // Input stream is null
+
+        } catch (e: Exception) {
+            Result.Failed(DataError.Storage.ERROR_SAVING)
+        }
+    }
+
+    private fun savePdfUsingFile(pdfUri: Uri): EmptyResult<DataError.Storage> {
+        val pdfName = "DocScan_${System.currentTimeMillis()}.pdf"
+
+        // Define the directory and file for the new PDF
+        val directory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            DIRECTORY
+        )
+        if (!directory.exists()) {
+            if (!directory.mkdirs()) {
+                return Result.Failed(DataError.Storage.ERROR_SAVING)
             }
+        }
+
+        val file = File(directory, pdfName)
+
+        return try {
+            // Open input stream to read from the existing PDF file
+            context.contentResolver.openInputStream(pdfUri)?.use { inputStream ->
+                // Open output stream to write to the new file location
+                FileOutputStream(file).use { outputStream ->
+                    val buffer = ByteArray(4096) // 4 KB buffer size
+                    var bytesRead: Int
+
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                    }
+                    outputStream.flush()
+
+                    // Notify the MediaStore about the new file
+                    context.sendBroadcast(
+                        Intent(
+                            Intent.ACTION_MEDIA_SCANNER_SCAN_FILE,
+                            Uri.fromFile(file)
+                        )
+                    )
+
+                    Result.Success(Unit).asEmptyDataResult()
+                }
+            } ?: Result.Failed(DataError.Storage.ERROR_SAVING) // Input stream is null
+
+        } catch (e: Exception) {
+            Result.Failed(DataError.Storage.ERROR_SAVING)
         }
     }
 
     suspend fun readDocPdf(): Result<List<DocPdf>, DataError.Storage> {
         return withContext(Dispatchers.IO) {
-            val contentResolver = context.contentResolver ?: return@withContext Result.Failed(DataError.Storage.ERROR_READING)
-            val result: ArrayList<DocPdf> = arrayListOf()
-
             try {
-                // Use MediaStore.Files to query for PDF files
-                val uriExternal: Uri = MediaStore.Files.getContentUri("external")
-                val projection = arrayOf(
-                    MediaStore.Files.FileColumns._ID,
-                    MediaStore.Files.FileColumns.DISPLAY_NAME,
-                    MediaStore.Files.FileColumns.DATE_MODIFIED,
-                    MediaStore.Files.FileColumns.MIME_TYPE
-                )
-                val selection = "${MediaStore.Files.FileColumns.MIME_TYPE} = ? AND ${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
-                val selectionArgs = arrayOf(
-                    "application/pdf",  // Filter only PDF files
-                    "%/$DIRECTORY/%"    // Filter by directory
-                )
-                val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
-
-                contentResolver.query(
-                    uriExternal,
-                    projection,
-                    selection,
-                    selectionArgs,
-                    sortOrder
-                )?.use { cursor ->
-                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-                    val filenameColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                    val dateModifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(idColumn)
-                        val filename = cursor.getString(filenameColumn)
-                        var dateModified = cursor.getLong(dateModifiedColumn)
-                        val uri = ContentUris.withAppendedId(uriExternal, id)
-
-                        if (dateModified == 0L) {
-                            dateModified = System.currentTimeMillis() / 1000 // Convert milliseconds to seconds
-                        }
-
-                        result.add(DocPdf(id, filename, uri, dateModified))
-                    }
+                val pdfList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    println("readPdfUsingMediaStore")
+                    readPdfUsingMediaStore()
+                } else {
+                    readPdfUsingFileSystem()
                 }
-
-                // Return success with the result list
-                Result.Success(result)
+                Result.Success(pdfList)
             } catch (e: Exception) {
-                // Handle any other exceptions that may occur
                 e.printStackTrace()
                 Result.Failed(DataError.Storage.ERROR_READING)
             }
         }
     }
 
-    suspend fun saveDocImg(imageUri: Uri): EmptyResult<DataError.Storage> {
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "DocScan_${System.currentTimeMillis()}")
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            put(
-                MediaStore.MediaColumns.RELATIVE_PATH,
-                Environment.DIRECTORY_PICTURES + "/" + DIRECTORY
-            )
-        }
+    private fun readPdfUsingMediaStore(): List<DocPdf> {
+        val pdfList: ArrayList<DocPdf> = arrayListOf()
 
-        return withContext(Dispatchers.IO) {
-            try {
+        val uriExternal: Uri = MediaStore.Files.getContentUri("external")
+        val projection = arrayOf(
+            MediaStore.Files.FileColumns._ID,
+            MediaStore.Files.FileColumns.DISPLAY_NAME,
+            MediaStore.Files.FileColumns.DATE_MODIFIED,
+            MediaStore.Files.FileColumns.MIME_TYPE
+        )
+        val selection =
+            "${MediaStore.Files.FileColumns.MIME_TYPE} = ? AND ${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
+        val selectionArgs = arrayOf(
+            "application/pdf",  // Filter only PDF files
+            "%/$DIRECTORY/%"    // Filter by directory
+        )
+        val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
 
-                val uri = context.contentResolver.insert(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
-                ) ?: return@withContext Result.Failed(DataError.Storage.ERROR_SAVING)
+        context.contentResolver.query(
+            uriExternal,
+            projection,
+            selection,
+            selectionArgs,
+            sortOrder
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+            val filenameColumn =
+                cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+            val dateModifiedColumn =
+                cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
 
-                val outputStream: OutputStream = context.contentResolver.openOutputStream(uri)
-                    ?: return@withContext Result.Failed(DataError.Storage.ERROR_SAVING)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idColumn)
+                val filename = cursor.getString(filenameColumn)
+                var dateModified = cursor.getLong(dateModifiedColumn)
+                val uri = ContentUris.withAppendedId(uriExternal, id)
 
-                try {
-                    val bitmap = imageUri.toBitmap(context)
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                    outputStream.flush()
-                    Result.Success(Unit).asEmptyDataResult()
-                } catch (e: Exception) {
-                    Result.Failed(DataError.Storage.ERROR_SAVING)
-                } finally {
-                    outputStream.close()
+                if (dateModified == 0L) {
+                    dateModified =
+                        System.currentTimeMillis() / 1000 // Convert milliseconds to seconds
                 }
 
-            } catch (e: Exception) {
-                Result.Failed(DataError.Storage.ERROR_SAVING)
+                pdfList.add(DocPdf(id, filename, uri, dateModified))
             }
         }
+
+        return pdfList
+    }
+
+    private fun readPdfUsingFileSystem(): List<DocPdf> {
+        val pdfList = mutableListOf<DocPdf>()
+
+        // Define the directory to search for PDFs
+        val directory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
+            DIRECTORY
+        )
+        if (directory.exists() && directory.isDirectory) {
+            // List all files with .pdf extension in the directory
+            val files = directory.listFiles { _, name ->
+                name.endsWith(".pdf", ignoreCase = true)
+            }
+
+            files?.forEach { file ->
+                val id =
+                    file.hashCode().toLong() // Generate a unique ID based on the file's hash code
+                val filename = file.name
+                val uri = Uri.fromFile(file)
+                val dateModified = file.lastModified()
+
+                pdfList.add(DocPdf(id, filename, uri, dateModified))
+            }
+        }
+
+        return pdfList
     }
 
     suspend fun readDocsImg(): Result<List<DocImg>, DataError.Storage> {
         return withContext(Dispatchers.IO) {
             val result: ArrayList<DocImg> = arrayListOf()
 
-            val contentResolver = context.contentResolver ?: return@withContext Result.Failed(DataError.Storage.ERROR_READING)
+            val contentResolver = context.contentResolver ?: return@withContext Result.Failed(
+                DataError.Storage.ERROR_READING
+            )
 
             val uriExternal: Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(
                 MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.DATE_MODIFIED
+                MediaStore.Images.Media.DATE_MODIFIED,
+                MediaStore.Images.Media.DATA // This column is needed for Android 9 and below
             )
-            val selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
-            val selectionArgs = arrayOf("%/$DIRECTORY/%")
+
+            // Check API level and adjust query accordingly
+            val selection: String?
+            val selectionArgs: Array<String>
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10 and above: Use relative_path for filtering by directory
+                selection = "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?"
+                selectionArgs = arrayOf("%/$DIRECTORY/%")
+            } else {
+                // Android 9 and below: No initial selection, filter manually by path later
+                selection = null // No selection to get all images
+                selectionArgs = emptyArray() // No selection arguments
+            }
+
             val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
 
             try {
@@ -247,20 +313,31 @@ class DataSource(
                     sortOrder
                 )?.use { cursor ->
                     val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-                    val filenameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-                    val dateModifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+                    val filenameColumn =
+                        cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                    val dateModifiedColumn =
+                        cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_MODIFIED)
+//                    val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA) // Needed for path filtering
 
                     while (cursor.moveToNext()) {
                         val id = cursor.getLong(idColumn)
                         val filename = cursor.getString(filenameColumn)
                         val dateModified = cursor.getLong(dateModifiedColumn)
                         val uri = ContentUris.withAppendedId(uriExternal, id)
+//                        val filePath = cursor.getString(dataColumn)
 
                         // Attempt to load the image bitmap, might be null if loading fails
                         val imageBitmap = uri.toImageBitmap(context)
 
-                        // Add the document to the list
-                        result.add(DocImg(id, filename, imageBitmap, uri, dateModified))
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                            // For Android 9 and below, manually filter by path
+//                            if (filePath.contains(DIRECTORY)) {
+                            result.add(DocImg(id, filename, imageBitmap, uri, dateModified))
+//                            }
+                        } else {
+                            // For Android 10 and above, use the result directly
+                            result.add(DocImg(id, filename, imageBitmap, uri, dateModified))
+                        }
                     }
                 }
 
@@ -274,6 +351,84 @@ class DataSource(
             }
         }
     }
+
+    suspend fun saveDocImg(imageUri: Uri): EmptyResult<DataError.Storage> {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Determine where to save the file based on the Android version
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10 and above: Use MediaStore and RELATIVE_PATH
+                    saveImageUsingMediaStore(imageUri)
+                } else {
+                    // Android 9 and below: Use traditional file path
+                    saveImageUsingFile(imageUri)
+                }
+            } catch (e: Exception) {
+                Result.Failed(DataError.Storage.ERROR_SAVING)
+            }
+        }
+    }
+
+    private suspend fun saveImageUsingMediaStore(imageUri: Uri): EmptyResult<DataError.Storage> {
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "DocScan_${System.currentTimeMillis()}")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_PICTURES + "/$DIRECTORY"
+            )
+        }
+
+        return try {
+            val destinationUri = context.contentResolver.insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            ) ?: return Result.Failed(DataError.Storage.ERROR_SAVING)
+
+            context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+                val bitmap = imageUri.toBitmap(context)
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                outputStream.flush()
+                Result.Success(Unit).asEmptyDataResult()
+            } ?: Result.Failed(DataError.Storage.ERROR_SAVING)
+        } catch (e: Exception) {
+            Result.Failed(DataError.Storage.ERROR_SAVING)
+        }
+    }
+
+    private suspend fun saveImageUsingFile(imageUri: Uri): EmptyResult<DataError.Storage> {
+        // Define the directory where the image will be saved
+        val directory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            DIRECTORY
+        )
+        if (!directory.exists()) {
+            if (!directory.mkdirs()) {
+                return Result.Failed(DataError.Storage.ERROR_SAVING)
+            }
+        }
+
+        // Create a new file for the image
+        val fileName = "DocScan_${System.currentTimeMillis()}.png"
+        val file = File(directory, fileName)
+
+        return try {
+            // Open output stream to write the image
+            withContext(Dispatchers.IO) {
+                FileOutputStream(file).use { outputStream ->
+                    val bitmap = imageUri.toBitmap(context)
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                    outputStream.flush()
+                }
+            }
+            // Notify MediaStore about the new image file
+            context.sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(file)))
+            Result.Success(Unit).asEmptyDataResult()
+        } catch (e: Exception) {
+            Result.Failed(DataError.Storage.ERROR_SAVING)
+        }
+    }
+
 
     suspend fun deleteDocImg(uri: Uri): EmptyResult<DataError.Storage> {
         return withContext(Dispatchers.IO) {
@@ -299,10 +454,11 @@ class DataSource(
             onUpdateImg()
         }, onUpdatePdf = {})
 
-        pdfContentObserver = DocumentContentObserver(coroutineScope, onUpdateImg = {}, onUpdatePdf = {
-            println("== change in pdf")
-            onUpdatePdf()
-        })
+        pdfContentObserver =
+            DocumentContentObserver(coroutineScope, onUpdateImg = {}, onUpdatePdf = {
+                println("== change in pdf")
+                onUpdatePdf()
+            })
 
         contentResolver.registerContentObserver(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
