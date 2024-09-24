@@ -1,6 +1,6 @@
 # 📄 Doc Scanner: AI-Powered Document Scanning & PDF Creation
 
-**Doc Scanner** is a powerful Android app that leverages the advanced capabilities of Google ML Kit to bring effortless document scanning right to your fingertips! Whether you need to save documents as high-quality images or PDFs, this app has got you covered.
+**Doc Scanner** is an Android app that leverages the advanced capabilities of Google ML Kit to bring effortless document scanning right to your fingertips! Whether you need to save documents as high-quality images or PDFs, this app has got you covered.
 
 ## ✨ Features
  - **🤖 AI-Powered Document Scanning:**
