@@ -13,11 +13,6 @@
    - Save your documents securely and conveniently across different Android versions.
 
 ## 🧩 Tech Stack
-- Google ML Kit: For advanced document scanning and processing.
-- Android Jetpack Components: Modern Android components for robust app architecture.
-- Kotlin: The primary language used for a concise and efficient codebase.
-
-## Tech stack
 - **Kotlin**: The primary language used for a concise and efficient codebase.
 - **Jetpack Compose**: Modern UI toolkit for building native Android interfaces with a declarative approach.
 - **Google ML Kit**: Advanced machine learning capabilities for document scanning.
